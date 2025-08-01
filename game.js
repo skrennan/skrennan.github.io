@@ -5,7 +5,7 @@ canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
 let gravity = 0.5;
-let jumpForce = -12;
+let jumpForce = -8;
 let speed = 4;
 let score = 0;
 let isGameOver = false;
@@ -90,7 +90,9 @@ function update() {
 
   if (player.y + player.height > canvas.height) {
     player.y = canvas.height - player.height;
-    player.velocityY = 0;
+    isGameOver = true;
+    drawGameOver();
+    return;
   }
 
   if (player.y < 0) {
@@ -149,3 +151,4 @@ document.addEventListener("mousedown", () => {
 });
 
 update();
+ 
