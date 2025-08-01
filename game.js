@@ -12,6 +12,9 @@ let hardModeStartFrame = null;
 let isGameOver = false;
 let frameCount = 0;
 
+const bgImage = new Image();
+bgImage.src = "assets/background.png";
+
 const playerImg = new Image();
 playerImg.src = "assets/player.png";
 
@@ -103,7 +106,7 @@ function update() {
   }
 
   frameCount++;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
 
   // Score e dificuldade
   if (frameCount % 10 === 0) score++;
