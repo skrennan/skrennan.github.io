@@ -166,6 +166,12 @@ function update() {
 
   obstacles = obstacles.filter(obs => obs.x + obs.width > 0);
 
+  // Créditos
+  ctx.font = "14px Arial";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+  ctx.textAlign = "center";
+  ctx.fillText("Desenvolvido por Renan Santos", canvas.width / 2, canvas.height - 10);
+
   requestAnimationFrame(update);
 }
 
