@@ -1,18 +1,20 @@
-// game.js
+// game.js - VERSÃO MOBILE
 
-// Mapeamento de Classes
 const ENEMY_CLASSES = {
-    'client': ClientEnemy,
-    'tax': TaxEnemy,
-    'sales': SalesEnemy,
-    'stock': StockEnemy,
-    'finance': FinanceEnemy,
-    'bureaucracy': Enemy
+    'client': ClientEnemy, 'tax': TaxEnemy, 'sales': SalesEnemy,
+    'stock': StockEnemy, 'finance': FinanceEnemy, 'bureaucracy': Enemy
 };
 
 const AudioSys = {
     ctx: null,
-    init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
+    init() { 
+        // Suporte para iOS/Android que exige interação para iniciar audio
+        if (!this.ctx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.ctx = new AudioContext();
+        }
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+    },
     play(type) {
         if (!this.ctx) return;
         const osc = this.ctx.createOscillator();
@@ -40,7 +42,7 @@ const AudioSys = {
             osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, t);
             gain.gain.setValueAtTime(0.1, t); gain.gain.linearRampToValueAtTime(0, t+0.2);
             osc.start(t); osc.stop(t+0.2);
-        } else if (type === 'chomp') { // SOM DE MORDIDA/ATAQUE
+        } else if (type === 'chomp') {
             osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, t); 
             gain.gain.setValueAtTime(0.05, t); gain.gain.linearRampToValueAtTime(0, t+0.1);
             osc.start(t); osc.stop(t+0.1);
@@ -62,10 +64,23 @@ class Game {
         this.selectedTower = null; this.sellMode = false;
         this.mouseX = 0; this.mouseY = 0;
 
+        // EVENTOS DE MOUSE (PC)
         this.canvas.addEventListener('mousemove', e => this.updateMouse(e));
         this.canvas.addEventListener('mousedown', e => this.handleClick(e));
-        this.loop = this.loop.bind(this); requestAnimationFrame(this.loop);
         
+        // EVENTOS DE TOUCH (CELULAR) - NOVO!
+        this.canvas.addEventListener('touchstart', e => {
+            e.preventDefault(); // Impede scroll da tela ao tocar no jogo
+            this.handleTouch(e);
+        }, {passive: false});
+        
+        // Permite arrastar o dedo para ver onde vai colocar (opcional, atualiza o highlight)
+        this.canvas.addEventListener('touchmove', e => {
+            e.preventDefault();
+            this.updateTouchPosition(e);
+        }, {passive: false});
+
+        this.loop = this.loop.bind(this); requestAnimationFrame(this.loop);
         setInterval(() => { if (this.waveActive) this.spawnSun(Math.random()*(WIDTH-100)+50, -50, true); }, 12000);
     }
 
@@ -82,7 +97,7 @@ class Game {
         this.highlightUI(null);
     }
     startWave() {
-        this.waveActive = true; this.showToast(`Trimestre ${this.wave}`);
+        this.waveActive = true; this.showToast(`Onda ${this.wave}`);
         const count = 4 + Math.floor(this.wave * 1.8);
         this.enemiesToSpawn = [];
         const pool = ['client'];
@@ -101,7 +116,6 @@ class Game {
     update() {
         if (!this.active) return;
         
-        // SPAWNER
         if (this.waveActive && this.enemiesToSpawn.length > 0) {
             this.spawnTimer++;
             if (this.spawnTimer > 90 - (this.wave*2)) {
@@ -114,17 +128,11 @@ class Game {
         }
         if (this.waveActive && this.enemiesToSpawn.length === 0 && this.enemies.length === 0) this.endWave();
 
-        // UPDATE TOWERS (Se morrerem, remove do grid)
         for (let i = this.towers.length - 1; i >= 0; i--) {
-            const t = this.towers[i];
-            t.update(this);
+            const t = this.towers[i]; t.update(this);
             if (t.markedForDeletion) {
-                // Efeito de destruição
                 for(let k=0; k<10; k++) this.particles.push(new Particle(t.x, t.y, '#95a5a6'));
-                // Limpa grid lógico
-                this.grid[t.row][t.col] = null;
-                this.towers.splice(i, 1);
-                AudioSys.play('error');
+                this.grid[t.row][t.col] = null; this.towers.splice(i, 1); AudioSys.play('error');
             }
         }
 
@@ -133,8 +141,7 @@ class Game {
             this.enemies.forEach(e => {
                 const dist = Math.sqrt((b.x-e.x)**2 + (b.y-e.y)**2);
                 if (dist < e.radius + 5) {
-                    b.markedForDeletion = true; e.takeDamage(b.damage);
-                    AudioSys.play('hit');
+                    b.markedForDeletion = true; e.takeDamage(b.damage); AudioSys.play('hit');
                     this.floatingTexts.push(new FloatingText(e.x, e.y-20, `-${b.damage}`, '#ff6b6b'));
                     for(let i=0; i<3; i++) this.particles.push(new Particle(e.x, e.y, '#fff'));
                     if (e.markedForDeletion) {
@@ -146,46 +153,26 @@ class Game {
             });
         });
 
-        // UPDATE ENEMIES (COM LÓGICA DE COLISÃO TORRE)
         this.enemies.forEach(e => {
-            // Calcula em qual coluna o inimigo está ("Bico" do inimigo)
-            const frontX = e.x - e.radius; 
-            const col = Math.floor(frontX / TILE_SIZE);
-            const row = e.row;
-
+            const frontX = e.x - e.radius; const col = Math.floor(frontX / TILE_SIZE); const row = e.row;
             let isBlocked = false;
-
-            // Verifica se tem torre na célula atual ou na próxima (se estiver muito perto)
             if (col >= 0 && col < COLS) {
                 const tower = this.towers.find(t => t.row === row && t.col === col);
-                
-                // Se existe torre E o inimigo está tocando nela (distância visual)
                 if (tower && frontX < (tower.col * TILE_SIZE + TILE_SIZE - 20)) {
-                    isBlocked = true;
-                    
-                    // Lógica de Ataque
-                    e.attackTimer--;
+                    isBlocked = true; e.attackTimer--;
                     if (e.attackTimer <= 0) {
-                        tower.takeDamage(e.power);
-                        e.attackTimer = 60; // Ataca a cada 1 segundo (60 frames)
-                        AudioSys.play('chomp'); // Som de mordida
-                        
-                        // Efeito visual de batida
+                        tower.takeDamage(e.power); e.attackTimer = 60; AudioSys.play('chomp');
                         this.particles.push(new Particle(tower.x, tower.y, '#f1c40f'));
                     }
                 }
             }
-
-            // Passa o status de bloqueio para o update do inimigo
             e.update(isBlocked);
-
             if (e.x < 0) {
                 e.markedForDeletion = true; this.lives--; AudioSys.play('error');
                 this.updateUI(); this.ctx.translate(5,0); setTimeout(()=>this.ctx.setTransform(1,0,0,1,0,0), 50);
                 if (this.lives <= 0) this.gameOver();
             }
         });
-
         [this.suns, this.particles, this.floatingTexts].forEach(arr => arr.forEach(i => i.update()));
         this.bullets = this.bullets.filter(b=>!b.markedForDeletion);
         this.enemies = this.enemies.filter(e=>!e.markedForDeletion);
@@ -195,7 +182,6 @@ class Game {
     }
 
     draw() {
-        // 1. Grid
         this.ctx.fillStyle = COLORS.bg; this.ctx.fillRect(0,0,WIDTH,HEIGHT);
         this.ctx.lineWidth = 1; this.ctx.strokeStyle = 'rgba(255,255,255,0.03)';
         for(let r=0; r<ROWS; r++){
@@ -204,7 +190,7 @@ class Game {
                 this.ctx.fillStyle = (r+c)%2===0 ? COLORS.grid1 : COLORS.grid2;
                 this.ctx.fillRect(x,y,TILE_SIZE,TILE_SIZE); this.ctx.strokeRect(x,y,TILE_SIZE,TILE_SIZE);
                 
-                // Mouse Highlight & Range
+                // Highlight (Se tiver mouseX/Y validos)
                 if(this.active && this.mouseX>x && this.mouseX<x+TILE_SIZE && this.mouseY>y && this.mouseY<y+TILE_SIZE) {
                     if (this.sellMode) {
                         this.ctx.strokeStyle = '#e74c3c'; this.ctx.lineWidth = 2; this.ctx.strokeRect(x,y,TILE_SIZE,TILE_SIZE);
@@ -217,45 +203,84 @@ class Game {
                             this.ctx.fillStyle = 'rgba(52, 152, 219, 0.1)'; this.ctx.fill();
                             this.ctx.strokeStyle = 'rgba(52, 152, 219, 0.3)'; this.ctx.stroke();
                         }
-                    } else if (this.grid[r][c]) {
-                        const t = this.towers.find(t=>t.row===r && t.col===c);
-                        if(t && t.data.range) {
-                            this.ctx.beginPath(); this.ctx.arc(x+TILE_SIZE/2, y+TILE_SIZE/2, t.data.range, 0, Math.PI*2);
-                            this.ctx.strokeStyle = 'rgba(255,255,255,0.2)'; this.ctx.stroke();
-                        }
                     }
                 }
             }
         }
-        // 2. Base
         this.ctx.fillStyle = COLORS.base; this.ctx.fillRect(0,0,TILE_SIZE,HEIGHT);
         this.ctx.strokeStyle = '#c0392b'; this.ctx.beginPath(); this.ctx.moveTo(TILE_SIZE,0); this.ctx.lineTo(TILE_SIZE,HEIGHT); this.ctx.stroke();
 
-        // 3. Entidades
         this.towers.forEach(t => t.draw(this.ctx));
         this.enemies.forEach(e => e.draw(this.ctx));
         this.bullets.forEach(b => b.draw(this.ctx));
         this.particles.forEach(p => p.draw(this.ctx));
-        
-        // 4. UI Top
         this.suns.forEach(s => s.draw(this.ctx));
         this.floatingTexts.forEach(t => t.draw(this.ctx));
     }
 
     loop() { this.update(); this.draw(); requestAnimationFrame(this.loop); }
-    updateMouse(e) { const rect = this.canvas.getBoundingClientRect(); this.mouseX = e.clientX - rect.left; this.mouseY = e.clientY - rect.top; }
     
+    // --- LÓGICA DE INPUT UNIFICADA (PC + MOBILE) ---
+    
+    // Converte Coordenada de Tela (CSS) para Coordenada de Jogo (Canvas Interno)
+    getGameCoordinates(clientX, clientY) {
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = this.canvas.width / rect.width;   // Fator de escala X
+        const scaleY = this.canvas.height / rect.height; // Fator de escala Y
+        
+        return {
+            x: (clientX - rect.left) * scaleX,
+            y: (clientY - rect.top) * scaleY
+        };
+    }
+
+    updateMouse(e) { 
+        const coords = this.getGameCoordinates(e.clientX, e.clientY);
+        this.mouseX = coords.x;
+        this.mouseY = coords.y;
+    }
+
+    // Handler para toque (Mobile)
+    handleTouch(e) {
+        if (!this.active) return;
+        const touch = e.touches[0]; // Pega o primeiro dedo
+        const coords = this.getGameCoordinates(touch.clientX, touch.clientY);
+        
+        // Atualiza posição interna para o highlight funcionar antes do clique
+        this.mouseX = coords.x;
+        this.mouseY = coords.y;
+        
+        // Simula o clique
+        this.processClick();
+    }
+
+    // Handler para arrastar o dedo (Mobile)
+    updateTouchPosition(e) {
+        const touch = e.touches[0];
+        const coords = this.getGameCoordinates(touch.clientX, touch.clientY);
+        this.mouseX = coords.x;
+        this.mouseY = coords.y;
+    }
+
+    // Handler para clique (PC)
     handleClick(e) {
-        if(!this.active) return; this.updateMouse(e);
-        // Click Sun
+        if (!this.active) return;
+        this.updateMouse(e);
+        this.processClick();
+    }
+
+    // Lógica principal de interação (comum para Touch e Mouse)
+    processClick() {
+        // 1. Tentar pegar Sol
         for (let i=this.suns.length-1; i>=0; i--) {
             const s = this.suns[i];
-            if (Math.sqrt((this.mouseX-s.x)**2 + (this.mouseY-s.y)**2) < 40) {
+            // Hitbox um pouco maior para facilitar no celular
+            if (Math.sqrt((this.mouseX-s.x)**2 + (this.mouseY-s.y)**2) < 50) {
                 s.markedForDeletion = true; this.money += 25; AudioSys.play('coin'); this.updateUI();
                 this.floatingTexts.push(new FloatingText(s.x, s.y, "+$25", "#2ecc71")); return;
             }
         }
-        // Grid logic
+        // 2. Colocar Torre
         const c = Math.floor(this.mouseX/TILE_SIZE); const r = Math.floor(this.mouseY/TILE_SIZE);
         if(c>=0 && c<COLS && r>=0 && r<ROWS) {
             if (this.sellMode) {
@@ -278,6 +303,7 @@ class Game {
             } else if (this.selectedTower) AudioSys.play('error');
         }
     }
+
     toggleSellMode() {
         this.sellMode = !this.sellMode; this.selectedTower = null; this.highlightUI(null);
         const btn = document.getElementById('btn-sell');
@@ -298,7 +324,7 @@ class Game {
         document.getElementById('lives-display').innerText = this.lives;
         document.getElementById('wave-display').innerText = this.wave;
         document.getElementById('score-display').innerText = this.score;
-        const costs = {'btn-wall':75,'btn-marketing':50, 'btn-store':50, 'btn-factory':125, 'btn-bank':300};
+        const costs = {'btn-wall':75, 'btn-marketing':50, 'btn-store':50, 'btn-factory':125, 'btn-bank':300};
         for(const [id,cost] of Object.entries(costs)){
             const el = document.getElementById(id);
             if(this.money<cost) el.classList.add('disabled'); else el.classList.remove('disabled');
