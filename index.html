@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Defesa Fiscal - Corporate Edition</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="810" height="450"></canvas>
+        
+        <div id="ui-layer">
+            
+            <div id="hud">
+                <div class="hud-item" title="Orçamento Disponível">
+                    💰 <span id="money-display">100</span>
+                </div>
+                <div class="hud-item" title="Tentativas de Falência">
+                    ❤️ <span id="lives-display">5</span>
+                </div>
+                <div class="hud-item" title="Trimestre Atual">
+                    🌊 <span id="wave-display">1</span>
+                </div>
+                <div class="hud-item" title="Score Global">
+                    ⭐ <span id="score-display">0</span>
+                </div>
+            </div>
+
+            <div id="toast" class="hidden">Onda 1!</div>
+
+            <div id="controls">
+                
+                <div class="card" onclick="game.toggleSellMode()" id="btn-sell">
+                    <div class="icon">🚫</div>
+                    <div class="info">
+                        <strong>Demitir</strong>
+                        <span>+70%</span>
+                    </div>
+                </div>
+
+                <div style="width:1px; background:rgba(255,255,255,0.1); margin:0 5px;"></div>
+
+                <div class="card" onclick="game.selectTower('wall', 75)" id="btn-wall">
+                    <div class="icon">🚧</div>
+                    <div class="info">
+                        <strong>Parede</strong>
+                        <span>$75</span>
+                    </div>
+                </div>
+
+                <div class="card" onclick="game.selectTower('marketing', 50)" id="btn-marketing">
+                    <div class="icon">📈</div>
+                    <div class="info">
+                        <strong>Mkt</strong>
+                        <span>$50</span>
+                    </div>
+                </div>
+
+                <div class="card" onclick="game.selectTower('store', 50)" id="btn-store">
+                    <div class="icon">🏪</div>
+                    <div class="info">
+                        <strong>Loja</strong>
+                        <span>$50</span>
+                    </div>
+                </div>
+                <div class="card" onclick="game.selectTower('factory', 125)" id="btn-factory">
+                    <div class="icon">🏭</div>
+                    <div class="info">
+                        <strong>Fábrica</strong>
+                        <span>$125</span>
+                    </div>
+                </div>
+                <div class="card" onclick="game.selectTower('bank', 300)" id="btn-bank">
+                    <div class="icon">🏦</div>
+                    <div class="info">
+                        <strong>Banco</strong>
+                        <span>$300</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="level-overlay" class="hidden">
+                <h1>META BATIDA! 🥂</h1>
+                <p>Onda <span id="level-wave-num">1</span> finalizada com sucesso.</p>
+                <div class="profit-box">
+                    <span>Bônus de Produtividade:</span>
+                    <strong id="level-bonus-value">+$150</strong>
+                </div>
+                <p class="small">Reestruturando o departamento para o próximo desafio...</p>
+                <button onclick="game.nextLevel()">PRÓXIMO TRIMESTRE</button>
+            </div>
+
+            <div id="menu-overlay">
+                <h1 id="menu-title">Defesa Fiscal</h1>
+                <p>Impeça a falência da empresa!</p>
+                <button onclick="game.start()">INICIAR JOGO</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/dependencies.js"></script>
+
+    <script src="js/Enemy.js"></script>
+
+    <script src="js/Client.js"></script>
+    <script src="js/Tax.js"></script>
+    <script src="js/Sales.js"></script>
+    <script src="js/Stock.js"></script>
+    <script src="js/Finance.js"></script>
+    
+    <script src="game.js"></script>
+
+</body>
+</html>
