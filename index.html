@@ -3,29 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Defesa Fiscal - Mobile</title>
+    <title>Defesa Fiscal - Corporate Edition</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* Previne seleção de texto e comportamentos de toque nativos no celular */
         body { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: none; }
     </style>
 </head>
 <body>
 
     <div id="game-container">
-        <canvas id="gameCanvas" width="810" height="630"></canvas> <div id="ui-layer">
+        <canvas id="gameCanvas" width="810" height="450"></canvas>
+        
+        <div id="ui-layer">
             <div id="hud">
                 <div class="hud-item" title="Orçamento">💰 <span id="money-display">100</span></div>
                 <div class="hud-item" title="Vidas">❤️ <span id="lives-display">5</span></div>
                 <div class="hud-item" title="Onda">🌊 <span id="wave-display">1</span></div>
-                <div class="hud-item" title="Pontos">⭐ <span id="score-display">0</span></div>
+                <div class="hud-item" title="Score">⭐ <span id="score-display">0</span></div>
             </div>
 
             <div id="toast" class="hidden">Onda 1!</div>
 
             <div id="controls">
                 <div class="card" onclick="game.toggleSellMode()" id="btn-sell">
-                    <div class="icon">🚫</div><div class="info"><strong>Demitir</strong><span>70%</span></div>
+                    <div class="icon">🚫</div><div class="info"><strong>Demitir</strong><span>+70%</span></div>
                 </div>
                 <div style="width:1px; background:rgba(255,255,255,0.1); margin:0 2px;"></div>
                 <div class="card" onclick="game.selectTower('wall', 75)" id="btn-wall">
@@ -46,15 +47,22 @@
             </div>
 
             <div id="level-overlay" class="hidden">
-                <h1>META BATIDA!</h1>
-                <p>Onda <span id="level-wave-num">1</span> vencida.</p>
-                <div class="profit-box"><span>Bônus:</span><strong id="level-bonus-value">+$150</strong></div>
-                <button onclick="game.nextLevel()">PRÓXIMO</button>
+                <h1>META BATIDA! 🥂</h1>
+                <p>O trimestre <span id="level-wave-num">1</span> foi um sucesso absoluto.</p>
+                
+                <div class="profit-box">
+                    <span>Bônus de Produtividade:</span>
+                    <strong id="level-bonus-value">+$150</strong>
+                </div>
+                
+                <p class="small">"O Board está satisfeito com sua gestão..."</p>
+                <button onclick="game.nextLevel()">PRÓXIMO TRIMESTRE 📈</button>
             </div>
+
             <div id="menu-overlay">
-                <h1 id="menu-title">Defesa Fiscal</h1>
-                <p>Toque para Iniciar</p>
-                <button onclick="game.start()">JOGAR</button>
+                <h1 id="menu-title">DEFESA FISCAL 🛡️</h1>
+                <p id="menu-subtitle">Proteja o fluxo de caixa ou enfrente a falência!</p>
+                <button onclick="game.start()">ASSINAR CONTRATO ✒️</button>
             </div>
         </div>
     </div>

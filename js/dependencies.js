@@ -1,10 +1,8 @@
-// js/dependencies.js
-
 const TILE_SIZE = 90;
 const COLS = 9;
 const ROWS = 5;
 const WIDTH = 810;
-const HEIGHT = 630;
+const HEIGHT = 450;
 
 const COLORS = {
     bg: '#0f172a',
@@ -15,17 +13,16 @@ const COLORS = {
     highlightBad: 'rgba(231, 76, 60, 0.3)'
 };
 
-// ATUALIZADO: Torres agora tem HP (maxHp)
+// ATUALIZADO: Vida (maxHp) reduzida para aumentar a dificuldade
 const TOWERS = {
-    marketing: { cost: 50,  maxHp: 50,  color: '#27ae60', icon: '📈', type: 'eco', cooldown: 600, range: 0 },
-    store:     { cost: 50,  maxHp: 100, color: '#00cec9', icon: '🏪', type: 'atk', damage: 20, cooldown: 70, range: 900, speed: 8 },
-    factory:   { cost: 125, maxHp: 200, color: '#6c5ce7', icon: '🏭', type: 'atk', damage: 35, cooldown: 90, range: 900, speed: 10 },
-    bank:      { cost: 300, maxHp: 300, color: '#f1c40f', icon: '🏦', type: 'atk', damage: 100, cooldown: 180, range: 900, speed: 6 },
-    // NOVA TORRE: WALL (Compliance)
-    wall:      { cost: 75,  maxHp: 800, color: '#f39c12', icon: '🚧', type: 'wall', cooldown: 0, range: 0 } 
+    marketing: { cost: 50,  maxHp: 30,  color: '#27ae60', icon: '📈', type: 'eco', cooldown: 600, range: 0 },
+    store:     { cost: 50,  maxHp: 60,  color: '#00cec9', icon: '🏪', type: 'atk', damage: 20, cooldown: 70, range: 900, speed: 8 },
+    factory:   { cost: 125, maxHp: 120, color: '#6c5ce7', icon: '🏭', type: 'atk', damage: 35, cooldown: 90, range: 900, speed: 10 },
+    bank:      { cost: 300, maxHp: 180, color: '#f1c40f', icon: '🏦', type: 'atk', damage: 100, cooldown: 180, range: 900, speed: 6 },
+    wall:      { cost: 75,  maxHp: 500, color: '#f39c12', icon: '🚧', type: 'wall', cooldown: 0, range: 0 } 
 };
 
-// ATUALIZADO: Inimigos agora tem 'power' (dano contra torres)
+// Inimigos mantidos (mas agora eles destroem torres mais rápido proporcionalmente)
 const ENEMIES = {
     client:      { hp: 120, speed: 0.6, reward: 10, power: 1, icon: '😠', color: '#d63031' },
     tax:         { hp: 40,  speed: 1.8, reward: 5,  power: 2, icon: '💸', color: '#00b894' },
@@ -143,50 +140,32 @@ class Tower extends Entity {
     draw(ctx) {
         const s = this.scale; ctx.save(); ctx.translate(this.x, this.y); ctx.scale(s, s);
         
-        // Se for a Parede, desenha a Barreira
         if (this.typeKey === 'wall') {
             this.drawComplianceWall(ctx);
         } else {
-            // Desenho padrão (Emoji)
             ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0, 20, 25, 8, 0, 0, Math.PI*2); ctx.fill();
             ctx.font = "42px Segoe UI Emoji"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
             ctx.fillText(this.data.icon, 0, 0);
         }
 
-        // Barra de Vida da Torre (Só mostra se tomou dano)
+        // Barra de Vida
         if (this.hp < this.maxHp) {
             const pct = Math.max(0, this.hp / this.maxHp);
             ctx.fillStyle = 'red'; ctx.fillRect(-20, -35, 40, 4);
             ctx.fillStyle = '#2ecc71'; ctx.fillRect(-20, -35, 40 * pct, 4);
         }
-
         ctx.restore();
     }
 
     drawComplianceWall(ctx) {
-        // Bloco de Concreto
-        ctx.fillStyle = '#576574'; // Cinza escuro
-        ctx.fillRect(-30, -25, 60, 50);
-        
-        // Listras de Aviso (Amarelo e Preto)
-        ctx.fillStyle = '#f1c40f'; // Amarelo
-        ctx.beginPath();
-        ctx.moveTo(-30, -25); ctx.lineTo(-10, -25); ctx.lineTo(-30, -5); ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(0, -25); ctx.lineTo(20, -25); ctx.lineTo(-30, 25); ctx.lineTo(-30, 5); ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(30, -25); ctx.lineTo(30, -5); ctx.lineTo(0, 25); ctx.lineTo(-20, 25); ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(30, 5); ctx.lineTo(30, 25); ctx.lineTo(10, 25); ctx.fill();
-        
-        // Borda 3D
-        ctx.lineWidth = 2; ctx.strokeStyle = '#2c3e50';
-        ctx.strokeRect(-30, -25, 60, 50);
-
-        // Placa "STOP"
-        ctx.fillStyle = '#c0392b';
-        ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#fff';
-        ctx.font = "bold 10px Arial"; ctx.fillText("STOP", 0, 1);
+        ctx.fillStyle = '#576574'; ctx.fillRect(-30, -25, 60, 50);
+        ctx.fillStyle = '#f1c40f'; 
+        ctx.beginPath(); ctx.moveTo(-30, -25); ctx.lineTo(-10, -25); ctx.lineTo(-30, -5); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(0, -25); ctx.lineTo(20, -25); ctx.lineTo(-30, 25); ctx.lineTo(-30, 5); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(30, -25); ctx.lineTo(30, -5); ctx.lineTo(0, 25); ctx.lineTo(-20, 25); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(30, 5); ctx.lineTo(30, 25); ctx.lineTo(10, 25); ctx.fill();
+        ctx.lineWidth = 2; ctx.strokeStyle = '#2c3e50'; ctx.strokeRect(-30, -25, 60, 50);
+        ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.font = "bold 10px Arial"; ctx.fillText("STOP", 0, 1);
     }
 }

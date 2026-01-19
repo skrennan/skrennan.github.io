@@ -1,5 +1,3 @@
-// game.js - VERSÃO MOBILE
-
 const ENEMY_CLASSES = {
     'client': ClientEnemy, 'tax': TaxEnemy, 'sales': SalesEnemy,
     'stock': StockEnemy, 'finance': FinanceEnemy, 'bureaucracy': Enemy
@@ -8,7 +6,6 @@ const ENEMY_CLASSES = {
 const AudioSys = {
     ctx: null,
     init() { 
-        // Suporte para iOS/Android que exige interação para iniciar audio
         if (!this.ctx) {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             this.ctx = new AudioContext();
@@ -46,6 +43,10 @@ const AudioSys = {
             osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, t); 
             gain.gain.setValueAtTime(0.05, t); gain.gain.linearRampToValueAtTime(0, t+0.1);
             osc.start(t); osc.stop(t+0.1);
+        } else if (type === 'alarm') { // SOM DE ALARME DA BIG WAVE
+            osc.type = 'square'; osc.frequency.setValueAtTime(440, t); osc.frequency.linearRampToValueAtTime(880, t+0.5);
+            gain.gain.setValueAtTime(0.1, t); gain.gain.linearRampToValueAtTime(0, t+0.5);
+            osc.start(t); osc.stop(t+0.5);
         }
     }
 };
@@ -61,24 +62,16 @@ class Game {
         this.particles = []; this.suns = []; this.floatingTexts = [];
         
         this.waveActive = false; this.enemiesToSpawn = []; this.spawnTimer = 0;
+        this.isRushMode = false; // Controle da Big Wave
+        
         this.selectedTower = null; this.sellMode = false;
         this.mouseX = 0; this.mouseY = 0;
 
-        // EVENTOS DE MOUSE (PC)
         this.canvas.addEventListener('mousemove', e => this.updateMouse(e));
         this.canvas.addEventListener('mousedown', e => this.handleClick(e));
         
-        // EVENTOS DE TOUCH (CELULAR) - NOVO!
-        this.canvas.addEventListener('touchstart', e => {
-            e.preventDefault(); // Impede scroll da tela ao tocar no jogo
-            this.handleTouch(e);
-        }, {passive: false});
-        
-        // Permite arrastar o dedo para ver onde vai colocar (opcional, atualiza o highlight)
-        this.canvas.addEventListener('touchmove', e => {
-            e.preventDefault();
-            this.updateTouchPosition(e);
-        }, {passive: false});
+        this.canvas.addEventListener('touchstart', e => { e.preventDefault(); this.handleTouch(e); }, {passive: false});
+        this.canvas.addEventListener('touchmove', e => { e.preventDefault(); this.updateTouchPosition(e); }, {passive: false});
 
         this.loop = this.loop.bind(this); requestAnimationFrame(this.loop);
         setInterval(() => { if (this.waveActive) this.spawnSun(Math.random()*(WIDTH-100)+50, -50, true); }, 12000);
@@ -87,6 +80,11 @@ class Game {
     start() {
         AudioSys.init(); this.active = true; this.money = 100; this.lives = 5; this.wave = 1; this.score = 0;
         this.resetBoard(); this.updateUI();
+        
+        const title = document.getElementById('menu-title');
+        title.innerText = "DEFESA FISCAL 🛡️"; title.style.color = "#f1c40f";
+        document.getElementById('menu-subtitle').innerText = "Proteja o fluxo de caixa!";
+        document.querySelector('#menu-overlay button').innerHTML = "ASSINAR CONTRATO ✒️";
         document.getElementById('menu-overlay').classList.add('hidden');
         this.startWave();
     }
@@ -96,29 +94,66 @@ class Game {
         this.selectedTower = null; this.sellMode = false;
         this.highlightUI(null);
     }
+    
     startWave() {
-        this.waveActive = true; this.showToast(`Onda ${this.wave}`);
-        const count = 4 + Math.floor(this.wave * 1.8);
+        this.waveActive = true; 
+        this.isRushMode = false;
+        this.showToast(`Trimestre ${this.wave}`);
+        
         this.enemiesToSpawn = [];
+        
+        // --- 1. CONFIGURAÇÃO DOS INIMIGOS DA ONDA ---
+        const normalCount = 4 + Math.floor(this.wave * 1.5);
+        const bigWaveCount = 3 + Math.floor(this.wave * 0.5); // Aumenta com a dificuldade
+        
         const pool = ['client'];
         if(this.wave >= 2) pool.push('tax'); if(this.wave >= 3) pool.push('sales');
         if(this.wave >= 4) pool.push('stock'); if(this.wave >= 5) pool.push('finance');
         if(this.wave >= 6) pool.push('bureaucracy');
-        for (let i=0; i<count; i++) this.enemiesToSpawn.push(pool[Math.floor(Math.random()*pool.length)]);
+
+        // Adiciona a HORDA FINAL primeiro (Como usamos .pop(), eles ficam no fundo da pilha e saem por último)
+        for (let i=0; i<bigWaveCount; i++) {
+            // Na big wave, tentamos colocar inimigos mais fortes se disponíveis
+            const toughEnemy = pool.length > 1 ? pool[Math.floor(Math.random()*(pool.length-1)) + 1] : 'client';
+            this.enemiesToSpawn.push(toughEnemy);
+        }
+
+        // Adiciona os inimigos normais (ficam no topo da pilha, saem primeiro)
+        for (let i=0; i<normalCount; i++) {
+            this.enemiesToSpawn.push(pool[Math.floor(Math.random()*pool.length)]);
+        }
+        
         this.spawnTimer = 0;
     }
+
     spawnSun(x, y, fromSky=false) {
         const targetY = fromSky ? Math.random()*(HEIGHT-120)+60 : y+40;
         const startY = fromSky ? -60 : y;
         const s = new Sun(x, targetY); if(fromSky) s.y = startY;
         this.suns.push(s);
     }
+
     update() {
         if (!this.active) return;
         
+        // --- SPAWNER INTELIGENTE ---
         if (this.waveActive && this.enemiesToSpawn.length > 0) {
             this.spawnTimer++;
-            if (this.spawnTimer > 90 - (this.wave*2)) {
+            
+            // Verifica se entramos na "Big Wave" (últimos 5 inimigos)
+            if (!this.isRushMode && this.enemiesToSpawn.length <= 5) {
+                this.isRushMode = true;
+                this.showToast("⚠️ HORDA FINAL! ⚠️");
+                AudioSys.play('alarm');
+            }
+
+            // Tempo de spawn: Normal = Lento | Big Wave = Rápido
+            let spawnRate = 90 - (this.wave * 2); 
+            if (this.isRushMode) spawnRate = 30; // Muito rápido na horda final
+
+            if (spawnRate < 20) spawnRate = 20; // Limite mínimo
+
+            if (this.spawnTimer > spawnRate) {
                 const typeKey = this.enemiesToSpawn.pop();
                 const row = Math.floor(Math.random()*ROWS);
                 const EnemyClass = ENEMY_CLASSES[typeKey] || Enemy;
@@ -126,8 +161,10 @@ class Game {
                 this.spawnTimer = 0;
             }
         }
+        
         if (this.waveActive && this.enemiesToSpawn.length === 0 && this.enemies.length === 0) this.endWave();
 
+        // UPDATE TOWERS
         for (let i = this.towers.length - 1; i >= 0; i--) {
             const t = this.towers[i]; t.update(this);
             if (t.markedForDeletion) {
@@ -190,7 +227,6 @@ class Game {
                 this.ctx.fillStyle = (r+c)%2===0 ? COLORS.grid1 : COLORS.grid2;
                 this.ctx.fillRect(x,y,TILE_SIZE,TILE_SIZE); this.ctx.strokeRect(x,y,TILE_SIZE,TILE_SIZE);
                 
-                // Highlight (Se tiver mouseX/Y validos)
                 if(this.active && this.mouseX>x && this.mouseX<x+TILE_SIZE && this.mouseY>y && this.mouseY<y+TILE_SIZE) {
                     if (this.sellMode) {
                         this.ctx.strokeStyle = '#e74c3c'; this.ctx.lineWidth = 2; this.ctx.strokeRect(x,y,TILE_SIZE,TILE_SIZE);
@@ -220,67 +256,35 @@ class Game {
 
     loop() { this.update(); this.draw(); requestAnimationFrame(this.loop); }
     
-    // --- LÓGICA DE INPUT UNIFICADA (PC + MOBILE) ---
-    
-    // Converte Coordenada de Tela (CSS) para Coordenada de Jogo (Canvas Interno)
     getGameCoordinates(clientX, clientY) {
         const rect = this.canvas.getBoundingClientRect();
-        const scaleX = this.canvas.width / rect.width;   // Fator de escala X
-        const scaleY = this.canvas.height / rect.height; // Fator de escala Y
-        
-        return {
-            x: (clientX - rect.left) * scaleX,
-            y: (clientY - rect.top) * scaleY
-        };
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
     }
-
-    updateMouse(e) { 
-        const coords = this.getGameCoordinates(e.clientX, e.clientY);
-        this.mouseX = coords.x;
-        this.mouseY = coords.y;
-    }
-
-    // Handler para toque (Mobile)
+    updateMouse(e) { const coords = this.getGameCoordinates(e.clientX, e.clientY); this.mouseX = coords.x; this.mouseY = coords.y; }
     handleTouch(e) {
         if (!this.active) return;
-        const touch = e.touches[0]; // Pega o primeiro dedo
+        const touch = e.touches[0];
         const coords = this.getGameCoordinates(touch.clientX, touch.clientY);
-        
-        // Atualiza posição interna para o highlight funcionar antes do clique
-        this.mouseX = coords.x;
-        this.mouseY = coords.y;
-        
-        // Simula o clique
+        this.mouseX = coords.x; this.mouseY = coords.y;
         this.processClick();
     }
-
-    // Handler para arrastar o dedo (Mobile)
     updateTouchPosition(e) {
         const touch = e.touches[0];
         const coords = this.getGameCoordinates(touch.clientX, touch.clientY);
-        this.mouseX = coords.x;
-        this.mouseY = coords.y;
+        this.mouseX = coords.x; this.mouseY = coords.y;
     }
+    handleClick(e) { if(!this.active) return; this.updateMouse(e); this.processClick(); }
 
-    // Handler para clique (PC)
-    handleClick(e) {
-        if (!this.active) return;
-        this.updateMouse(e);
-        this.processClick();
-    }
-
-    // Lógica principal de interação (comum para Touch e Mouse)
     processClick() {
-        // 1. Tentar pegar Sol
         for (let i=this.suns.length-1; i>=0; i--) {
             const s = this.suns[i];
-            // Hitbox um pouco maior para facilitar no celular
             if (Math.sqrt((this.mouseX-s.x)**2 + (this.mouseY-s.y)**2) < 50) {
                 s.markedForDeletion = true; this.money += 25; AudioSys.play('coin'); this.updateUI();
                 this.floatingTexts.push(new FloatingText(s.x, s.y, "+$25", "#2ecc71")); return;
             }
         }
-        // 2. Colocar Torre
         const c = Math.floor(this.mouseX/TILE_SIZE); const r = Math.floor(this.mouseY/TILE_SIZE);
         if(c>=0 && c<COLS && r>=0 && r<ROWS) {
             if (this.sellMode) {
@@ -346,7 +350,11 @@ class Game {
         setTimeout(()=>t.classList.remove('visible'), 2000);
     }
     gameOver() {
-        this.active = false; document.getElementById('menu-title').innerText = "FALÊNCIA DECRETADA!";
+        this.active = false;
+        const title = document.getElementById('menu-title');
+        title.innerHTML = "FALÊNCIA! 📉"; title.style.color = "#e74c3c";
+        document.getElementById('menu-subtitle').innerHTML = "Seus bens foram congelados.<br>O RH quer falar com você.";
+        document.querySelector('#menu-overlay button').innerHTML = "TENTAR RECUPERAÇÃO 💸";
         document.getElementById('menu-overlay').classList.remove('hidden');
     }
 }
