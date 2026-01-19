@@ -1,3 +1,5 @@
+// game.js - VERSÃO FINAL (Mobile + Big Wave)
+
 const ENEMY_CLASSES = {
     'client': ClientEnemy, 'tax': TaxEnemy, 'sales': SalesEnemy,
     'stock': StockEnemy, 'finance': FinanceEnemy, 'bureaucracy': Enemy
@@ -43,10 +45,12 @@ const AudioSys = {
             osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, t); 
             gain.gain.setValueAtTime(0.05, t); gain.gain.linearRampToValueAtTime(0, t+0.1);
             osc.start(t); osc.stop(t+0.1);
-        } else if (type === 'alarm') { // SOM DE ALARME DA BIG WAVE
-            osc.type = 'square'; osc.frequency.setValueAtTime(440, t); osc.frequency.linearRampToValueAtTime(880, t+0.5);
-            gain.gain.setValueAtTime(0.1, t); gain.gain.linearRampToValueAtTime(0, t+0.5);
-            osc.start(t); osc.stop(t+0.5);
+        } else if (type === 'alarm') { 
+            // SOM DE ALARME (Sirene)
+            osc.type = 'sawtooth'; 
+            osc.frequency.setValueAtTime(880, t); osc.frequency.linearRampToValueAtTime(440, t+0.8);
+            gain.gain.setValueAtTime(0.15, t); gain.gain.linearRampToValueAtTime(0, t+0.8);
+            osc.start(t); osc.stop(t+0.8);
         }
     }
 };
@@ -62,14 +66,14 @@ class Game {
         this.particles = []; this.suns = []; this.floatingTexts = [];
         
         this.waveActive = false; this.enemiesToSpawn = []; this.spawnTimer = 0;
-        this.isRushMode = false; // Controle da Big Wave
+        this.isRushMode = false;
         
         this.selectedTower = null; this.sellMode = false;
         this.mouseX = 0; this.mouseY = 0;
 
+        // Listeners (Mouse + Touch)
         this.canvas.addEventListener('mousemove', e => this.updateMouse(e));
         this.canvas.addEventListener('mousedown', e => this.handleClick(e));
-        
         this.canvas.addEventListener('touchstart', e => { e.preventDefault(); this.handleTouch(e); }, {passive: false});
         this.canvas.addEventListener('touchmove', e => { e.preventDefault(); this.updateTouchPosition(e); }, {passive: false});
 
@@ -101,28 +105,23 @@ class Game {
         this.showToast(`Trimestre ${this.wave}`);
         
         this.enemiesToSpawn = [];
-        
-        // --- 1. CONFIGURAÇÃO DOS INIMIGOS DA ONDA ---
         const normalCount = 4 + Math.floor(this.wave * 1.5);
-        const bigWaveCount = 3 + Math.floor(this.wave * 0.5); // Aumenta com a dificuldade
+        const bigWaveCount = 3 + Math.floor(this.wave * 0.5);
         
         const pool = ['client'];
         if(this.wave >= 2) pool.push('tax'); if(this.wave >= 3) pool.push('sales');
         if(this.wave >= 4) pool.push('stock'); if(this.wave >= 5) pool.push('finance');
         if(this.wave >= 6) pool.push('bureaucracy');
 
-        // Adiciona a HORDA FINAL primeiro (Como usamos .pop(), eles ficam no fundo da pilha e saem por último)
+        // Adiciona Horda Final (Fundo da pilha)
         for (let i=0; i<bigWaveCount; i++) {
-            // Na big wave, tentamos colocar inimigos mais fortes se disponíveis
             const toughEnemy = pool.length > 1 ? pool[Math.floor(Math.random()*(pool.length-1)) + 1] : 'client';
             this.enemiesToSpawn.push(toughEnemy);
         }
-
-        // Adiciona os inimigos normais (ficam no topo da pilha, saem primeiro)
+        // Adiciona Inimigos Normais (Topo da pilha)
         for (let i=0; i<normalCount; i++) {
             this.enemiesToSpawn.push(pool[Math.floor(Math.random()*pool.length)]);
         }
-        
         this.spawnTimer = 0;
     }
 
@@ -136,22 +135,20 @@ class Game {
     update() {
         if (!this.active) return;
         
-        // --- SPAWNER INTELIGENTE ---
+        // SPAWNER
         if (this.waveActive && this.enemiesToSpawn.length > 0) {
             this.spawnTimer++;
             
-            // Verifica se entramos na "Big Wave" (últimos 5 inimigos)
+            // DETECÇÃO DE HORDA GRANDE
             if (!this.isRushMode && this.enemiesToSpawn.length <= 5) {
                 this.isRushMode = true;
-                this.showToast("⚠️ HORDA FINAL! ⚠️");
+                this.showToast("⚠️ GRANDE HORDA CHEGANDO! ⚠️", true);
                 AudioSys.play('alarm');
             }
 
-            // Tempo de spawn: Normal = Lento | Big Wave = Rápido
             let spawnRate = 90 - (this.wave * 2); 
-            if (this.isRushMode) spawnRate = 30; // Muito rápido na horda final
-
-            if (spawnRate < 20) spawnRate = 20; // Limite mínimo
+            if (this.isRushMode) spawnRate = 30; // Acelera muito
+            if (spawnRate < 20) spawnRate = 20;
 
             if (this.spawnTimer > spawnRate) {
                 const typeKey = this.enemiesToSpawn.pop();
@@ -345,10 +342,33 @@ class Game {
         document.getElementById('level-overlay').classList.add('hidden');
         this.wave++; this.resetBoard(); this.updateUI(); this.startWave();
     }
-    showToast(msg) {
-        const t = document.getElementById('toast'); t.innerText=msg; t.classList.add('visible');
-        setTimeout(()=>t.classList.remove('visible'), 2000);
+
+    // ATUALIZADO: Suporte para aviso de perigo
+ showToast(msg, isDanger = false) {
+        const t = document.getElementById('toast');
+        t.innerText = msg;
+        
+        // CORREÇÃO AQUI: Removemos 'hidden' caso ela esteja lá
+        t.classList.remove('hidden'); 
+        
+        t.classList.remove('visible', 'danger-toast'); // Limpa estados anteriores
+        
+        if (isDanger) {
+            t.classList.add('danger-toast');
+        }
+        
+        // Força o navegador a reiniciar a animação (Reflow)
+        void t.offsetWidth; 
+        
+        t.classList.add('visible');
+        
+        // Oculta novamente depois do tempo
+        setTimeout(() => {
+            t.classList.remove('visible', 'danger-toast');
+            // Opcional: Adicionar hidden de volta se quiser, mas opacity já resolve
+        }, isDanger ? 3000 : 2000);
     }
+
     gameOver() {
         this.active = false;
         const title = document.getElementById('menu-title');
